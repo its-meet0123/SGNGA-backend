@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: sgnga-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: sgnga-ecommerce
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - sgnga-network
+
+  api:
+    build: .
+    container_name: sgnga-api
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/sgnga-ecommerce?authSource=admin
+    depends_on:
+      - mongodb
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - sgnga-network
+    command: npm run dev
+
+volumes:
+  mongodb_data:
+
+networks:
+  sgnga-network:
+    driver: bridge
