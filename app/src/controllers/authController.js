@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
+const cartService = require('../services/cartService');
 
 // Register user with phone, address, and location
 exports.register = async (req, res) => {
@@ -80,6 +81,19 @@ exports.login = async (req, res) => {
       expiresIn: process.env.JWT_EXPIRE
     });
 
+    let cart = null;
+    if (Array.isArray(req.body.guestCart) && req.body.guestCart.length > 0) {
+      try {
+        cart = await cartService.mergeGuestCart(user._id, req.body.guestCart);
+      } catch (mergeError) {
+        console.warn('Guest cart merge failed:', mergeError.message);
+      }
+    }
+
+    if (!cart) {
+      cart = await cartService.getCart(user._id);
+    }
+
     res.status(200).json({
       message: 'Login successful',
       token,
@@ -91,7 +105,8 @@ exports.login = async (req, res) => {
         address: user.address,
         location: user.location,
         role: user.role
-      }
+      },
+      cart
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

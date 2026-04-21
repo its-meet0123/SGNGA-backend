@@ -12,7 +12,8 @@ router.post('/register', [
   body('phone').notEmpty().withMessage('Phone number is required')
     .matches(/^[\d\s\-\+\(\)]{7,}$/).withMessage('Valid phone number is required'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('address.street').notEmpty().withMessage('Street address is required'),
+  body('address.street').optional(),
+  body('address.village').optional(),
   body('address.city').notEmpty().withMessage('City is required'),
   body('address.state').notEmpty().withMessage('State is required'),
   body('address.zipCode').notEmpty().withMessage('Zip code is required'),

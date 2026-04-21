@@ -3,17 +3,14 @@ const { body } = require('express-validator');
 const productController = require('../controllers/productController');
 const authMiddleware = require('../middleware/auth');
 const isAdmin = require('../middleware/isAdmin');
+const isSeller = require('../middleware/isSeller');
 
 const router = express.Router();
 
-// Get all products (public)
-router.get('/', productController.getAllProducts);
+router.get('/me', authMiddleware, isSeller, productController.getSellerProducts);
+router.get('/pending', authMiddleware, isAdmin, productController.getPendingProducts);
 
-// Get single product (public)
-router.get('/:id', productController.getProduct);
-
-// Create product (admin only)
-router.post('/', authMiddleware, isAdmin, [
+router.post('/', authMiddleware, [
   body('name').notEmpty().withMessage('Product name is required'),
   body('description').notEmpty().withMessage('Product description is required'),
   body('price').isFloat({ min: 0 }).withMessage('Valid price is required'),
@@ -21,18 +18,16 @@ router.post('/', authMiddleware, isAdmin, [
   body('stock').isInt({ min: 0 }).withMessage('Valid stock is required')
 ], productController.createProduct);
 
-// Add product images (admin only)
 router.post('/:id/images', authMiddleware, isAdmin, productController.addProductImages);
-
-// Update product (admin only)
-router.put('/:id', authMiddleware, isAdmin, productController.updateProduct);
-
-// Update product price (admin only)
+router.put('/:id', authMiddleware, productController.updateProduct);
 router.patch('/:id/price', authMiddleware, isAdmin, [
   body('price').isFloat({ min: 0 }).withMessage('Valid price is required')
 ], productController.updateProductPrice);
+router.delete('/:id', authMiddleware, productController.deleteProduct);
+router.post('/:id/approve', authMiddleware, isAdmin, productController.approveProduct);
+router.post('/:id/reject', authMiddleware, isAdmin, productController.rejectProduct);
 
-// Delete product (admin only)
-router.delete('/:id', authMiddleware, isAdmin, productController.deleteProduct);
+router.get('/', productController.getAllProducts);
+router.get('/:id', productController.getProduct);
 
 module.exports = router;

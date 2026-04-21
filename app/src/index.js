@@ -6,6 +6,9 @@ const path = require('path');
 // Load environment variables
 dotenv.config();
 
+// Import connection
+const connectMongoDB = require('./connection/mongodb');
+
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
@@ -21,8 +24,9 @@ const logger = require('./middleware/logger');
 const app = express();
 
 // Middleware
+const corsOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()) : ['http://localhost:5173'];
 app.use(cors({
-  origin: process.env.CORS_ORIGIN?.split(',') || '*',
+  origin: corsOrigins,
   credentials: true
 }));
 app.use(express.json());
@@ -71,9 +75,21 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 // Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
-});
+const startServer = async () => {
+  try {
+    // Connect to MongoDB
+    await connectMongoDB();
+
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`✓ Server running on port ${PORT} in ${process.env.NODE_ENV} mode`);
+    });
+  } catch (error) {
+    console.error('✗ Failed to start server:', error.message);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 module.exports = app;

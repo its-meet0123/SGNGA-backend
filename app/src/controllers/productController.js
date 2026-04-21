@@ -1,73 +1,57 @@
-const Product = require('../models/Product');
 const { validationResult } = require('express-validator');
+const { USER_ROLES } = require('../config/constants');
+const productService = require('../services/productService');
 
-// Get all products
 exports.getAllProducts = async (req, res) => {
   try {
-    const { category, minPrice, maxPrice, search, page = 1, limit = 10 } = req.query;
-
-    let filter = { isActive: true };
-
-    if (category) {
-      filter.category = category;
-    }
-
-    if (minPrice || maxPrice) {
-      filter.price = {};
-      if (minPrice) filter.price.$gte = Number(minPrice);
-      if (maxPrice) filter.price.$lte = Number(maxPrice);
-    }
-
-    if (search) {
-      filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    const skip = (page - 1) * limit;
-    const products = await Product.find(filter)
-      .populate('seller', 'firstName lastName email')
-      .skip(skip)
-      .limit(Number(limit))
-      .sort({ createdAt: -1 });
-
-    const total = await Product.countDocuments(filter);
-
+    const result = await productService.getAllProducts(req.query);
     res.status(200).json({
       message: 'Products retrieved successfully',
-      products,
-      pagination: {
-        total,
-        page: Number(page),
-        limit: Number(limit),
-        pages: Math.ceil(total / limit)
-      }
+      ...result
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Get single product
 exports.getProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id).populate('seller', 'firstName lastName email');
-
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
+    const currentUserId = req.userId || null;
+    const product = await productService.getProductById(req.params.id, currentUserId);
 
     res.status(200).json({
       message: 'Product retrieved successfully',
       product
     });
   } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
+exports.getSellerProducts = async (req, res) => {
+  try {
+    const products = await productService.getSellerProducts(req.user._id);
+    res.status(200).json({
+      message: 'Seller products retrieved successfully',
+      products
+    });
+  } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
 
-// Create product (admin only)
+exports.getPendingProducts = async (req, res) => {
+  try {
+    const products = await productService.getPendingProducts();
+    res.status(200).json({
+      message: 'Pending products retrieved successfully',
+      products
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.createProduct = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -75,77 +59,58 @@ exports.createProduct = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { name, description, price, category, stock } = req.body;
+    const product = await productService.createProduct(req.user, req.body);
 
-    const product = new Product({
-      name,
-      description,
-      price,
-      category,
-      stock,
-      seller: req.userId
-    });
+    const message = req.user.role === USER_ROLES.ADMIN
+      ? 'Product created successfully by admin'
+      : 'Product submitted for admin approval';
 
-    await product.save();
-
-    res.status(201).json({
-      message: 'Product created successfully by admin',
-      product
-    });
+    res.status(201).json({ message, product });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
-// Add product images (admin only)
 exports.addProductImages = async (req, res) => {
   try {
-    const { images } = req.body; // Expected: [{ url: String, altText: String }]
+    if (!req.user || req.user.role !== USER_ROLES.ADMIN) {
+      return res.status(403).json({ message: 'Forbidden - Admin access required' });
+    }
 
+    const { images } = req.body;
     if (!images || !Array.isArray(images)) {
       return res.status(400).json({ message: 'Images array is required' });
     }
 
-    const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
-    // Add images to the product
-    product.images.push(...images);
-    await product.save();
+    const product = await productService.updateProduct(req.user, req.params.id, {
+      images: images
+    });
 
     res.status(200).json({
       message: 'Product images added successfully',
       product
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
-// Update product (admin only)
 exports.updateProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
-
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
-    // Admin can update any product
-    const updatedProduct = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const product = await productService.updateProduct(req.user, req.params.id, req.body);
+    const message = req.user.role === USER_ROLES.ADMIN
+      ? 'Product updated successfully by admin'
+      : 'Product update submitted for admin approval';
 
     res.status(200).json({
-      message: 'Product updated successfully by admin',
-      product: updatedProduct
+      message,
+      product
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
-// Update product price (admin only)
 exports.updateProductPrice = async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -153,44 +118,63 @@ exports.updateProductPrice = async (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { price } = req.body;
-
-    const product = await Product.findById(req.params.id);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
+    if (!req.user || req.user.role !== USER_ROLES.ADMIN) {
+      return res.status(403).json({ message: 'Forbidden - Admin access required' });
     }
 
-    product.price = price;
-    await product.save();
+    const { price } = req.body;
+    const product = await productService.updateProduct(req.user, req.params.id, { price });
 
     res.status(200).json({
       message: 'Product price updated successfully by admin',
-      product,
-      previousPrice: product.price,
-      newPrice: price
+      product
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };
 
-// Delete product (admin only)
 exports.deleteProduct = async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const result = await productService.requestDeletion(req.user, req.params.id);
 
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
+    if (req.user.role === USER_ROLES.ADMIN) {
+      return res.status(200).json({
+        message: 'Product deleted successfully by admin',
+        deletedProductId: req.params.id
+      });
     }
 
-    // Admin can delete any product
-    await Product.findByIdAndRemove(req.params.id);
-
-    res.status(200).json({ 
-      message: 'Product deleted successfully by admin',
-      deletedProductId: req.params.id
+    res.status(200).json({
+      message: 'Product deletion request submitted for admin approval',
+      product: result
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
+exports.approveProduct = async (req, res) => {
+  try {
+    const product = await productService.approveProduct(req.user, req.params.id);
+    res.status(200).json({
+      message: 'Product changes approved successfully',
+      product
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
+  }
+};
+
+exports.rejectProduct = async (req, res) => {
+  try {
+    const reason = req.body.reason || 'Rejected by admin';
+    const product = await productService.rejectProduct(req.user, req.params.id, reason);
+    res.status(200).json({
+      message: 'Product changes rejected successfully',
+      product
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ message: error.message });
   }
 };

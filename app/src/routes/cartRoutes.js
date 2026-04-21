@@ -1,26 +1,13 @@
 const express = require('express');
 const authMiddleware = require('../middleware/auth');
+const cartController = require('../controllers/cartController');
 
 const router = express.Router();
 
-// Get cart
-router.get('/', authMiddleware, (req, res) => {
-  res.status(200).json({ message: 'Get cart - To be implemented' });
-});
-
-// Add to cart
-router.post('/', authMiddleware, (req, res) => {
-  res.status(201).json({ message: 'Add to cart - To be implemented' });
-});
-
-// Update cart
-router.put('/:itemId', authMiddleware, (req, res) => {
-  res.status(200).json({ message: 'Update cart - To be implemented' });
-});
-
-// Remove from cart
-router.delete('/:itemId', authMiddleware, (req, res) => {
-  res.status(200).json({ message: 'Remove from cart - To be implemented' });
-});
+router.get('/', authMiddleware, cartController.getCart);
+router.post('/', authMiddleware, cartController.addOrUpdateItem);
+router.put('/:itemId', authMiddleware, cartController.updateItem);
+router.delete('/:itemId', authMiddleware, cartController.removeItem);
+router.post('/merge', authMiddleware, cartController.mergeCart);
 
 module.exports = router;

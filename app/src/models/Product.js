@@ -35,6 +35,46 @@ const productSchema = new mongoose.Schema({
     url: String,
     altText: String
   }],
+  status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected'],
+    default: 'approved'
+  },
+  pendingUpdates: {
+    name: String,
+    description: String,
+    price: Number,
+    discountPrice: Number,
+    category: String,
+    stock: Number,
+    images: [{
+      url: String,
+      altText: String
+    }],
+    isActive: Boolean
+  },
+  pendingDeletion: {
+    type: Boolean,
+    default: false
+  },
+  approval: {
+    requestedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    requestedAt: Date,
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    approvedAt: Date,
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    rejectedAt: Date,
+    rejectionReason: String
+  },
   rating: {
     type: Number,
     default: 0,
