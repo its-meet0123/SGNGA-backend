@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
 
 const connectMongoDB = async () => {
   try {
@@ -9,11 +8,8 @@ const connectMongoDB = async () => {
       throw new Error('MONGODB_URI environment variable is not defined');
     }
 
-    // Connect to MongoDB
-    await mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    // Connect to MongoDB (removed deprecated options)
+    await mongoose.connect(mongoURI);
 
     console.log('✓ MongoDB connected successfully');
     console.log(`✓ Connected to: ${mongoURI.split('@')[1] || mongoURI.substring(0, 50)}...`);
